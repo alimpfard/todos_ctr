@@ -4,9 +4,9 @@ Because clearly every language requires a todo implementation!
 
 ### commands
 
-+ add [+priority] <text>  
++ add [+priority] \<text\>  
 	add a todo entry
-+ remove <idx>            
++ remove \<idx\>            
 	remove an entry
 + list                    
 	list the current todos
