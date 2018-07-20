@@ -1,0 +1,222 @@
+#!/usr/bin/env ctr
+
+import
+  Library/Data/SwitchCase
+  Library/Data/Json
+  Library/Utils/Colors
+  Library/Data/Map
+  .
+
+
+var greetings is Map fromArray: [
+  ['morning',
+    [
+      'Rise and then go back to sleep, %{user}! for it is yet another boring day!',
+      'Good morning, %{user}!',
+      'Welcome to the land of the living, %{user}',
+      '...go back to sleep'
+    ]
+  ],
+  ['noon',
+    [
+      'Decent afternoon, probably too hot though!',
+      'Hello, %{user}! it\'s nap time!',
+      'AHHHHHHHHHHHH Help me, %{user}! I\'m melting!',
+      'go away'
+    ]
+  ],
+  ['night',
+    [
+      'Ah! such a nice night, How do you do %{user}?',
+      'Night time is the best after all!',
+      'DELET THIS NOW! -- type `exit\''
+    ]
+  ]
+].
+var get_greet is {\:user:time :hour :greet
+  hour is time hour.
+  (hour < 12) & (hour > 5) ifTrue: \:_ (greetings at: 'morning') at: (12 - hour / 7 * 4) floor.
+  (hour < 20) ifTrue: \:_ (greetings at: 'noon') at: (20 - hour / 7 * 4) floor.
+  greet is (greetings at: 'night').
+  ^greet at: (Dice rollWithSides: greet count - 1).
+}.
+
+var greet is {\:user:time
+  Pen write: Colors % [(get_greet[user, time] %~: (Map new put: user at: 'user')), \cyan, \italic].
+  Pen writeln: Colors % [' It\'s %s!' % [(time format: '%a %r')], \red, \bold].
+}.
+
+var DEFAULT_SAVE is '~/.todos.save'.
+
+var Todo is Object cnew: {
+  save => File new: DEFAULT_SAVE.
+  my save exists ifFalse: { my save write: '[]'. }.
+  dirty => False.
+  todos => Json parse: my save read.
+}.
+
+Todo on: 'save' do: { ^my save. }.
+
+Todo on: 'new:' do: {:save_path
+  ^cnew: {
+    save => File new: save_path.
+    my save exists ifFalse: { my save write: '[]'. }.
+    dirty => False.
+    todos => Json parse: my save read.
+  }.
+}.
+
+Todo on: 'new' do: {
+  ^new: const DEFAULT_SAVE.
+}.
+
+Todo on: 'commit' do: {:self :val
+  my dirty ifFalse: \:_ self.
+  val is Json serialize: my todos.
+  my save write: val.
+  dirty => False.
+}.
+
+Todo on: 'getOrCreate' do: {:self
+  self commit.
+}.
+
+var colorize is {:map :color :pr
+  pr is map at: 'pr'.
+  color is (pr
+    case: 1 do: \:_ [\white],
+    case: 2 do: \:_ [\cyan],
+    case: 3 do: \:_ [\magenta],
+    case: 4 do: \:_ [\red],
+    default: (\:_ pr < 0 either: [\white] or: [\red, \bold]),
+    switch).
+  ^Colors % ([map @ 'todo'] + color reverse).
+}.
+
+Todo on: 'display' do: {:self
+  my todos count = 0 ifTrue: {
+    Pen green writeln: '[Todos] Nothing left to do! You might as well commit suicide now', resetColor.
+    ^self.
+  }.
+  Pen write: Colors % ['[Todo] Current todo list:\n', \magenta, \bold].
+  Pen writeln: (my todos imap: \:i:v '  %s. %d -> %s' % [i + 1, (v @ 'pr'), colorize[v]], join: '\n').
+}.
+
+Todo on: 'execute:' do: {:command :cmd :args
+  {
+    cmd is command split: ' ' max: 1.
+    args is cmd pop.
+    cmd is cmd head.
+  } catch: {
+    cmd is command.
+    args is ''.
+  }, run.
+  ^message: cmd arguments: [args].
+}.
+
+Todo on: 'add' do: {:args
+  args @ 0 = '+' either: {
+    args is args skip: 1, split: ' ' max: 1.
+    {
+      args put: args head toNumber at: 0.
+    } catch: {
+      Pen red writeln: (args head) + ' is not a number', resetColor.
+      args put: 1 at: 0.
+    }, run.
+  } or: {
+    args is [1, args].
+  }.
+  my todos push: (Map new put: args last at: 'todo', put: args head at: 'pr').
+  my dirty is True.
+  Pen magenta writeln: ('Added %d -> "%s"' % args).
+}.
+
+Todo on: 'remove' do: {:args :arg
+  var todo_count is my todos count.
+  {
+    arg is args trim toNumber.
+    (arg >=: todo_count) | (arg < 0) ifTrue: { thisBlock error: arg. }.
+    ^True.
+  } catch: {
+    Pen red writeln: 'What the heck is %s? (expecting number >= %d and number < %d)' % [args, 0, todo_count - 1].
+    ^False.
+  }, run ifFalse: \:_ Nil.
+  args is my todos pop: arg.
+  my dirty is True.
+  Pen magenta writeln: ('Removed %{pr} -> "%{todo}"' %~: args).
+}.
+
+Todo on: 'list' do: {
+  display.
+}.
+
+['respondTo:', 'respondTo:and:'] each_v: {:v
+  Todo on: v do: {:msg:*args
+    Pen red writeln: 'Unknown command $$msg'.
+  }.
+}.
+
+var __help is
+'Yet Another Todos App [YATA?]
+usage:
+  <executable_name> [command] [args] [options]
+commands:
+  add [+priority] <text>  --  add a todo entry
+  remove <idx>            --  remove an entry
+  list                    --  list the current todos
+  display                 --  alias for list
+  commit                  --  flush into save (automatically done at exit)
+  help                    --  this thing
+options:
+  -i                      -- interative mode'.
+
+var cliargs is Array new fill: Program argCount with: (\:i Program argument: i), do shift shift done.
+var todo is Todo getOrCreate. #TODO: add customizable save paths.
+var main is { :input
+  var exit is False.
+  var options is Map new
+    put: False at: 'should_interact',
+    put: True  at: 'with_color'.
+  # DEFS GO HERE
+  var cmdbuffer is process_args[cliargs, options].
+  cmdbuffer !=: '', either: {
+    todo execute: cmdbuffer.
+  } or: {
+    greet[(Program env: 'USER', or: 'master') upper1st, (Clock new zone: 'Asia/Tehran')].
+    todo display.
+    options at: 'should_interact', ifTrue: {
+      Pen magenta writeln: 'Interactive mode, write command or \'help\'', resetColor.
+      {^exit.} whileFalse: {
+        Pen green write: '> ', resetColor.
+        input is Program waitForInput trim.
+        input
+          case: 'exit' do: { exit is True. ^True. },
+          case: 'help' do: { Pen writeln: __help. ^True. },
+          default: { ^False. },
+          switch ifFalse: ({
+            todo execute: input.
+          } catch: {:e Pen red writeln: 'Error: $$e'. }).
+      }.
+    }.
+  }.
+  todo commit.
+}.
+
+var process_args is {:args:opts :cmdbuffer
+  cmdbuffer is ''.
+  args each: {:i:arg
+    arg
+      case: '-i' do: { opts put: True at: 'should_interact'. },
+      default: { cmdbuffer +=: arg + ' '. },
+      switch.
+  }.
+  ^cmdbuffer rightTrim.
+}.
+
+{
+  main[].
+  todo commit.
+} catch: {:e
+  todo commit.
+  Pen red writeln: e.
+}, run.
