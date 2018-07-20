@@ -25,5 +25,5 @@ e.g.
 ```sh
 $ main.ctr add +2 Publish this thing on github
 
-$ main.ctr help
+$ main.ctr
 ```
