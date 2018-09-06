@@ -36,9 +36,9 @@ var greetings is Map fromArray: [
 var get_greet is {\:user:time :hour :greet
   hour is time hour.
   (hour < 12) & (hour > 5) ifTrue: \:_ (greetings at: 'morning') at: (12 - hour / 7 * 4) floor.
-  (hour < 20) ifTrue: \:_ (greetings at: 'noon') at: (20 - hour / 7 * 4) floor.
+  (hour < 20) & (hour >=: 12) ifTrue: \:_ (greetings at: 'noon') at: (20 - hour / 7 * 4) floor - 1.
   greet is (greetings at: 'night').
-  ^greet at: (Dice rollWithSides: greet count - 1).
+  ^greet at: (Dice rollWithSides: greet count).
 }.
 
 var greet is {\:user:time
@@ -81,8 +81,9 @@ Todo on: 'getOrCreate' do: {:self
   self commit.
 }.
 
-var colorize is {:map :color :pr
+var colorize is {:map :color:resolved:pr
   pr is map at: 'pr'.
+  resolved is map at: 'resolved'.
   color is (pr
     case: 1 do: \:_ [\white],
     case: 2 do: \:_ [\cyan],
@@ -90,6 +91,7 @@ var colorize is {:map :color :pr
     case: 4 do: \:_ [\red],
     default: (\:_ pr < 0 either: [\white] or: [\red, \bold]),
     switch).
+  resolved either: { color is color + [\hide]. } or: {}.
   ^Colors % ([map @ 'todo'] + color reverse).
 }.
 
@@ -126,11 +128,37 @@ Todo on: 'add' do: {:args
   } or: {
     args is [1, args].
   }.
-  my todos push: (Map new put: args last at: 'todo', put: args head at: 'pr').
+  my todos push: (Map new put: False at: 'resolved', put: args last at: 'todo', put: args head at: 'pr').
   my dirty is True.
   Pen magenta writeln: ('Added %d -> "%s"' % args).
 }.
 
+Todo on: 'resolve' do: {:args :idxs:arg
+    idxs is args trim split: ',', fmap: \:x x trim toNumber.
+    var todos is my todos.
+    var dirty is my dirty.
+    idxs each_v: {:idx
+        idx -=: 1.
+        arg is todos at: idx.
+        arg put: True at: 'resolved'.
+        todos put: arg at: idx.
+        Pen magenta writeln: 'Set %s to resolved' % [arg @ 'todo'].
+    }.
+    my dirty is True.
+}.
+
+Todo on: 'unresolve' do: {:args :idxs:arg
+    idxs is args trim split: ',', fmap: \:x x trim toNumber.
+    var todos is my todos.
+    idxs each_v:{ :idx
+        idx -=: 1.
+        arg is todos at: idx.
+        arg put: False at: 'resolved'.
+        todos put: arg at: idx.
+        Pen magenta writeln: 'Set %s to unresolved' % [arg @ 'todo'].
+    }.
+    my dirty is True.
+}.
 Todo on: 'remove' do: {:args :arg
   var todo_count is my todos count.
   {
@@ -163,6 +191,8 @@ usage:
 commands:
   add [+priority] <text>  --  add a todo entry
   remove <idx>            --  remove an entry
+  resolve <idx>,+         --  set some entries as resolved
+  unresolve <idx>,+       --  set some entries as unresolved
   list                    --  list the current todos
   display                 --  alias for list
   commit                  --  flush into save (automatically done at exit)
@@ -218,5 +248,6 @@ var process_args is {:args:opts :cmdbuffer
   todo commit.
 } catch: {:e
   todo commit.
-  Pen red writeln: e.
+  #Pen red writeln: e.
+  thisBlock error: e.
 }, run.
