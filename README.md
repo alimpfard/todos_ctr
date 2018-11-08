@@ -27,3 +27,13 @@ $ main.ctr add +2 Publish this thing on github
 
 $ main.ctr
 ```
+
+### config
+
+It will try to read a config file at /etc/ctodo.json or ~/.config/ctodo.json (user dir first)
+said config can contain:
+
++ kill-if-unlucky : there will be an option where the program will refuse to exit, and kill its parent with itself
++ kill-wait : the number of seconds the program will wait before committing murder+suicide
+
+if the config doesn't exist, these default to Nil

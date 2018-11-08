@@ -7,43 +7,68 @@ import
   Library/Data/Map
   .
 
+var config is Map new.
+{
+  var files is ['~/.config/ctodo.conf', '/etc/ctodo.conf'].
+  files each_v: {:file
+    file is File new: file.
+    file exists ifTrue: {
+      config is Json parse: file read.
+    }, break.
+  }.
+} catch: { }, run.
+var kill? is config at: 'kill-if-unlucky'.
+var kill-wait is config at: 'kill-wait', or: 1.
 
 var greetings is Map fromArray: [
   ['morning',
     [
-      'Rise and then go back to sleep, %{user}! for it is yet another boring day!',
-      'Good morning, %{user}!',
-      'Welcome to the land of the living, %{user}',
-      '...go back to sleep'
-    ]
+      ['Rise and then go back to sleep, %{user}! for it is yet another boring day!', False],
+      ['Good morning, %{user}!', False],
+      ['Welcome to the land of the living, %{user}', False],
+      ['...go back to sleep', False],
+      ['Generations of threads died for this, feel ashamed %{user}, for you did this.', False]
+    ] + [['DIE! DIE DIE DIE DIE!', True],,, kill?]
   ],
   ['noon',
     [
-      'Decent afternoon, probably too hot though!',
-      'Hello, %{user}! it\'s nap time!',
-      'AHHHHHHHHHHHH Help me, %{user}! I\'m melting!',
-      'go away'
-    ]
+      ['Decent afternoon, probably too hot though!', False],
+      ['Hello, %{user}! it\'s nap time!', False],
+      ['AHHHHHHHHHHHH Help me, %{user}! I\'m melting!', False],
+      ['Why hello there, %{user}! now shoo', False],
+      ['go away', False]
+    ] + [['daga kotowaru!', True],,, kill?]
   ],
   ['night',
     [
-      'Ah! such a nice night, How do you do %{user}?',
-      'Night time is the best after all!',
-      'DELET THIS NOW! -- type `exit\''
-    ]
+      ['Ah! such a nice night, How do you do %{user}?', False],
+      ['Night time is the best after all!', False],
+      ['Who needs sleep? %{user}? WEAK.', False],
+      ['DELET THIS NOW! -- type `exit\'', False],
+      ['How do you do?', False]
+    ] + [['This program has performed an illegal operation and will now be shut down', True],,, kill?]
   ]
 ].
+
 var get_greet is {\:user:time :hour :greet
   hour is time hour.
-  (hour < 12) & (hour > 5) ifTrue: \:_ (greetings at: 'morning') at: (12 - hour / 7 * 4) floor.
-  (hour < 20) & (hour >=: 12) ifTrue: \:_ (greetings at: 'noon') at: (20 - hour / 7 * 4) floor - 1.
-  greet is (greetings at: 'night').
+  time is 'night'.
+  (hour < 12) & (hour > 5) ifTrue: { time is 'morning'. }.
+  (hour < 20) & (hour >=: 12) ifTrue: { time is 'noon'. }.
+  greet is greetings at: time.
   ^greet at: (Dice rollWithSides: greet count).
 }.
 
-var greet is {\:user:time
-  Pen write: Colors % [(get_greet[user, time] %~: (Map new put: user at: 'user')), \cyan, \italic].
+var greet is {\:user:time:greet
+  greet is get_greet[user, time].
+  Pen write: Colors % [(greet at: 0, %~: (Map new put: user at: 'user')), \cyan, \italic].
   Pen writeln: Colors % [' It\'s %s!' % [(time format: '%a %r')], \red, \bold].
+  greet at: 1, ifTrue: {
+    Clock wait: kill-wait sec.
+    Program cnew: {
+      pid => Inject run: 'int main() { return getppid(); }' arguments: [].
+    }, signal: 9.
+  }.
 }.
 
 var DEFAULT_SAVE is '~/.todos.save'.
