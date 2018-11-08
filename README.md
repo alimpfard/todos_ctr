@@ -8,6 +8,10 @@ Because clearly every language requires a todo implementation!
 	add a todo entry
 + remove \<idx\>            
 	remove an entry
++ resolve \<idx\>
+	resolve a todo, but don't remove it
++ unresolve \<idx\>
+	reverse of resolve
 + list                    
 	list the current todos
 + display                 

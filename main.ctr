@@ -9,7 +9,7 @@ import
 
 var config is Map new.
 {
-  var files is ['~/.config/ctodo.conf', '/etc/ctodo.conf'].
+  var files is ['~/.config/ctodo.json', '/etc/ctodo.json'].
   files each_v: {:file
     file is File new: file.
     file exists ifTrue: {
