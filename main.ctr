@@ -71,20 +71,40 @@ var greet is {\:user:time:greet
   }.
 }.
 
-var DEFAULT_SAVE is '~/.todos.save'.
+var DEFAULT_SAVE_DIR is config at: 'save_dir', or: '~/todos'.
+var DEFAULT_SAVE_FILE is config at: 'save_name', or: '.todos.save'.
 
-var Todo is Object cnew: {
-  save => File new: DEFAULT_SAVE.
-  my save exists ifFalse: { my save write: '[]'. }.
+var Todo is Object cnew: {:self
+  sessionlog => Array new.
+  gitDirF => File new: DEFAULT_SAVE_DIR.
+  # my gitDirF exists ifFalse: {
+  #   my gitDirF mkdir.
+  #   self gitInit.
+  # }.
+  gitDir => my gitDirF realPath.
+  savename => DEFAULT_SAVE_FILE.
+  save => File new: DEFAULT_SAVE_DIR + '/' + DEFAULT_SAVE_FILE.
+  my save exists ifFalse: {
+    my save write: '[]'.
+    self gitAdd: [my savename].
+  }.
   dirty => False.
   todos => Json parse: my save read.
 }.
 
 Todo on: 'save' do: { ^my save. }.
 
-Todo on: 'new:' do: {:save_path
+Todo on: 'new:name:' do: {:save_path:savename
   ^cnew: {
-    save => File new: save_path.
+    sessionlog => Array new.
+    gitDirF => File new: save_path.
+    # my gitDirF exists ifFalse: {
+    #   my gitDirF mkdir.
+    #   self gitInit.
+    # }.
+    gitDir => my gitDirF realPath.
+    savename => savename.
+    save => File new: save_path + '/' + savename.
     my save exists ifFalse: { my save write: '[]'. }.
     dirty => False.
     todos => Json parse: my save read.
@@ -92,14 +112,66 @@ Todo on: 'new:' do: {:save_path
 }.
 
 Todo on: 'new' do: {
-  ^new: const DEFAULT_SAVE.
+  ^new: const DEFAULT_SAVE_DIR name: const DEFAULT_SAVE_FILE.
 }.
+
+Todo on: 'clear' do: { Pen clear. }.
 
 Todo on: 'commit' do: {:self :val
   my dirty ifFalse: \:_ self.
   val is Json serialize: my todos.
   my save write: val.
+  self gitAdd gitCommit: 'modification :: ${{my sessionlog fmap: {\:x '%s %s (%s)' % x}, join: '; '}}$'.
   dirty => False.
+  my sessionlog is Array new.
+}.
+
+Todo on: 'git' do: {:self:*cmd
+  Shell git: (cmd join: ' ').
+}.
+
+Todo on: 'gitInit' do: {
+    var dir is '\'' + (my gitDir escape: '\'') + '\''.
+    Shell mkdir: '-p $$dir'.
+    Shell git: 'init $$dir'.
+}.
+
+Todo on: 'gitAdd:' do: {:*files
+    var cw is Program changeDirectory: my gitDir.
+    Shell git: 'add ' + (files fmap: (\:x '\'' + (x escape: '\'') + '\''), join: ' ').
+    Program changeDirectory: cw.
+}.
+
+Todo on: 'gitAdd' do: {:self
+  self gitAdd: my savename.
+}.
+
+Todo on: 'gitCommit:' do: {:msg
+    var cw is Program changeDirectory: my gitDir.
+    Shell git: 'commit -m \'' + (msg escape: '\'') + '\''.
+    Program changeDirectory: cw.
+}.
+
+Todo on: 'gitPush' do: {
+    var cw is Program changeDirectory: my gitDir.
+    Shell git: 'push'.
+    Program changeDirectory: cw.
+}.
+
+Todo on: 'gitPull' do: {
+    var cw is Program changeDirectory: my gitDir.
+    Shell git: 'pull'.
+    Program changeDirectory: cw.
+}.
+
+Todo on: 'sync' do: {:self
+  self gitPull gitPush.
+}.
+
+Todo on: 'import' do: {:giturl
+  var gitdir is '\'${{my gitDir escape: '\''}}$\''.
+  Shell rm: '-r $$gitdir'.
+  Shell git: 'clone \'${{giturl escape: '\''}}$\' $$gitdir'.
 }.
 
 Todo on: 'getOrCreate' do: {:self
@@ -138,6 +210,7 @@ Todo on: 'execute:' do: {:command :cmd :args
     cmd is command.
     args is ''.
   }, run.
+  my sessionlog push: [cmd, args, Clock new].
   ^message: cmd arguments: [args].
 }.
 
@@ -188,13 +261,13 @@ Todo on: 'remove' do: {:args :arg
   var todo_count is my todos count.
   {
     arg is args trim toNumber.
-    (arg >=: todo_count) | (arg < 0) ifTrue: { thisBlock error: arg. }.
+    (arg > todo_count) | (arg < 1) ifTrue: { thisBlock error: arg. }.
     ^True.
   } catch: {
-    Pen red writeln: 'What the heck is %s? (expecting number >= %d and number < %d)' % [args, 0, todo_count - 1].
+    Pen red writeln: 'What the heck is %s? (expecting number >= %d and number < %d)' % [args, 1, todo_count].
     ^False.
   }, run ifFalse: \:_ Nil.
-  args is my todos pop: arg.
+  args is my todos pop: arg - 1.
   my dirty is True.
   Pen magenta writeln: ('Removed %{pr} -> "%{todo}"' %~: args).
 }.
@@ -221,13 +294,16 @@ commands:
   list                    --  list the current todos
   display                 --  alias for list
   commit                  --  flush into save (automatically done at exit)
+  git <git command>       --  directly execute git commands on the git dir
+  import <url>            --  import a git url [warning: will remove the old data]
   help                    --  this thing
 options:
   -i                      -- interative mode'.
 
 var cliargs is Array new fill: Program argCount with: (\:i Program argument: i), do shift shift done.
 var todo is Todo getOrCreate. #TODO: add customizable save paths.
-var main is { :input
+var main is {
+  var input is Nil.
   var exit is False.
   var options is Map new
     put: False at: 'should_interact',
