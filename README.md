@@ -20,7 +20,10 @@ Because clearly every language requires a todo implementation!
 	flush into save (automatically done at exit)
 + help                    
 	show the help
-
++ git \<command\>
+	Execute git commands in the save directory
++ import \<url\>
+	Import a git url \[Warning: will remove the old data\]
 ### CLI usage
 
 `executable_name [command] [arguments] [options]`
