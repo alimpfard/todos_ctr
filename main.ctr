@@ -84,12 +84,16 @@ var Todo is Object cnew: {:self
   gitDir => my gitDirF realPath.
   savename => DEFAULT_SAVE_FILE.
   save => File new: DEFAULT_SAVE_DIR + '/' + DEFAULT_SAVE_FILE.
-  my save exists ifFalse: {
-    my save write: '[]'.
-    self gitAdd: [my savename].
-  }.
+  # my save exists ifFalse: {
+  #   my save write: '[]'.
+  #   self gitAdd: [my savename].
+  # }.
   dirty => False.
-  todos => Json parse: my save read.
+  my save exists ifTrue: {
+    todos => Json parse: my save read.
+  } ifFalse: {
+    todos => Array new.
+  }.
 }.
 
 Todo on: 'save' do: { ^my save. }.
@@ -105,9 +109,13 @@ Todo on: 'new:name:' do: {:save_path:savename
     gitDir => my gitDirF realPath.
     savename => savename.
     save => File new: save_path + '/' + savename.
-    my save exists ifFalse: { my save write: '[]'. }.
+    # my save exists ifFalse: { my save write: '[]'. }.
     dirty => False.
-    todos => Json parse: my save read.
+    my save exists ifTrue: {
+      todos => Json parse: my save read.
+    } ifFalse: {
+      todos => Array new.
+    }.
   }.
 }.
 
