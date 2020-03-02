@@ -18,6 +18,8 @@ Because clearly every language requires a todo implementation!
 	alias for list
 + commit                  
 	flush into save (automatically done at exit)
++ sync
+    synchronise with git repository
 + help                    
 	show the help
 
@@ -30,6 +32,14 @@ e.g.
 $ main.ctr add +2 Publish this thing on github
 
 $ main.ctr
+```
+
+The tasks can be marked for visibility at some given time range, by adding `[every <timespec>]` to their description:
+
+```sh
+$ main.ctr add +2 '[every 8-10] Show this between 8 AM and 10 AM'
+$ main.ctr add +2 '[every *:0-30] Show this only at the first 30 minutes of any hour'
+$ main.ctr add +2 '[every 0-14:0] Show this in the first minute, from midnight to 2 PM'
 ```
 
 ### config
