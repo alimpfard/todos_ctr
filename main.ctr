@@ -44,7 +44,7 @@ var greetings is Map fromArray: [
       ['Ah! such a nice night, How do you do %{user}?', False],
       ['Night time is the best after all!', False],
       ['Who needs sleep? %{user}? WEAK.', False],
-      ['DELET THIS NOW! -- type `exit\'', False],
+      ['DELETE THIS NOW! -- type `exit\'', False],
       ['How do you do?', False]
     ] + [['This program has performed an illegal operation and will now be shut down', True],,, kill?]
   ]
